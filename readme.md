@@ -50,13 +50,17 @@ pip install -r requirements.txt
 
 [Deep Learning Model Weights](https://drive.google.com/file/d/14fDV0b_sKDg0_DkQBTyO1UaT6mHrW9es/view?usp=sharing)
 
-5.  **Start the server**:
+### Running the Application
 
-```
+1. **Start the Flask server:**
+   ```bash
+   python application.py
+   ```
+   The server will start on `http://127.0.0.1:5000`
 
-python application.py
-
-```
+2. **Access the 3D Viewer:**
+   - Open your browser and navigate to: `http://127.0.0.1:5000/viewer`
+   - You should see the FloorPlan to 3D Viewer interface
 
 These steps will prepare your environment for using the API. While the API can be accessed with any client, for a fully integrated experience, we recommend using our Unity application, located in the Unity directory (Unity engine installation required).
 
