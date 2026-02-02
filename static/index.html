@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FloorPlan to 3D Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #333;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .container {
+            display: flex;
+            flex: 1;
+            gap: 20px;
+            padding: 20px;
+            max-width: 1800px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .sidebar {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            width: 320px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .upload-section {
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .upload-section:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .upload-section.dragover {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+
+        .upload-label {
+            display: block;
+            cursor: pointer;
+            padding: 15px;
+            background: #667eea;
+            color: white;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+
+        .upload-label:hover {
+            background: #5568d3;
+        }
+
+        #imageInput {
+            display: none;
+        }
+
+        .preview-container {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .settings-section {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .settings-section h3 {
+            color: #333;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .setting-item label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .setting-item input {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .setting-item input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .button:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        .button.secondary {
+            background: #48bb78;
+        }
+
+        .button.secondary:hover:not(:disabled) {
+            background: #38a169;
+        }
+
+        .status-message {
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 14px;
+            display: none;
+        }
+
+        .status-message.info {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .status-message.success {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .status-message.error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .viewer-container {
+            flex: 1;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        #viewer3d {
+            width: 100%;
+            height: 100%;
+        }
+
+        .viewer-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #666;
+            pointer-events: none;
+        }
+
+        .viewer-overlay.hidden {
+            display: none;
+        }
+
+        .controls-overlay {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.9);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .controls-overlay h4 {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .controls-overlay p {
+            font-size: 12px;
+            color: #666;
+            margin: 5px 0;
+        }
+
+        .info-panel {
+            background: #f7fafc;
+            padding: 15px;
+            border-radius: 6px;
+        }
+
+        .info-panel h4 {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            color: #666;
+            margin: 5px 0;
+        }
+
+        .info-item span:first-child {
+            font-weight: 500;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 1024px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>FloorPlan to 3D Viewer</h1>
+        <p>Upload a 2D floor plan image to generate an interactive 3D model with walls, doors, and windows</p>
+    </div>
+
+    <div class="container">
+        <div class="sidebar">
+            <div class="upload-section" id="uploadSection">
+                <label for="imageInput" class="upload-label">
+                    Choose Floor Plan Image
+                </label>
+                <input type="file" id="imageInput" accept="image/*">
+                <p style="margin-top: 10px; font-size: 12px; color: #999;">or drag and drop here</p>
+
+                <div class="preview-container" id="previewContainer">
+                    <img id="previewImage" class="preview-image" alt="Preview">
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3>3D Model Settings</h3>
+
+                <div class="setting-item">
+                    <label>Wall Height (m)</label>
+                    <input type="number" id="wallHeight" value="3.0" min="2.0" max="5.0" step="0.1">
+                </div>
+
+                <div class="setting-item">
+                    <label>Wall Thickness (m)</label>
+                    <input type="number" id="wallThickness" value="0.15" min="0.05" max="0.5" step="0.05">
+                </div>
+
+                <div class="setting-item">
+                    <label>Door Height (m)</label>
+                    <input type="number" id="doorHeight" value="2.1" min="1.8" max="2.5" step="0.1">
+                </div>
+
+                <div class="setting-item">
+                    <label>Window Height (m)</label>
+                    <input type="number" id="windowHeight" value="1.2" min="0.5" max="2.0" step="0.1">
+                </div>
+
+                <div class="setting-item">
+                    <label>Window Sill Height (m)</label>
+                    <input type="number" id="windowSillHeight" value="0.9" min="0.3" max="1.5" step="0.1">
+                </div>
+            </div>
+
+            <button class="button" id="generateBtn" disabled>Generate 3D Model</button>
+
+            <div class="status-message" id="statusMessage"></div>
+
+            <div class="info-panel" id="infoPanel" style="display: none;">
+                <h4>Model Information</h4>
+                <div class="info-item">
+                    <span>Walls:</span>
+                    <span id="wallCount">0</span>
+                </div>
+                <div class="info-item">
+                    <span>Doors:</span>
+                    <span id="doorCount">0</span>
+                </div>
+                <div class="info-item">
+                    <span>Windows:</span>
+                    <span id="windowCount">0</span>
+                </div>
+                <div class="info-item">
+                    <span>Vertices:</span>
+                    <span id="vertexCount">0</span>
+                </div>
+                <div class="info-item">
+                    <span>Faces:</span>
+                    <span id="faceCount">0</span>
+                </div>
+            </div>
+
+            <button class="button secondary" id="exportBtn" style="display: none;">Export glTF</button>
+        </div>
+
+        <div class="viewer-container">
+            <div id="viewer3d"></div>
+            <div class="viewer-overlay" id="viewerOverlay">
+                Upload a floor plan to see the 3D model
+            </div>
+
+            <div class="controls-overlay">
+                <h4>Controls</h4>
+                <p>🖱️ Left Click + Drag: Rotate</p>
+                <p>🖱️ Right Click + Drag: Pan</p>
+                <p>⚙️ Scroll: Zoom</p>
+                <button id="topViewBtn" style="margin-top: 10px; padding: 8px 12px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">Bird's Eye View</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module" src="/static/js/viewer.js"></script>
+</body>
+</html>

@@ -27,7 +27,7 @@ from matplotlib import pyplot
 from matplotlib.patches import Rectangle
 from keras.backend import clear_session
 import json
-from flask import Flask, flash, request,jsonify, redirect, url_for
+from flask import Flask, flash, request, jsonify, redirect, url_for, send_from_directory, render_template
 from werkzeug.utils import secure_filename
 
 from skimage.io import imread
@@ -37,7 +37,8 @@ import tensorflow as tf
 import sys
 
 from PIL import Image
-
+import base64
+from geometry_3d_generator import FloorPlan3DGenerator
 
 
 
@@ -54,7 +55,7 @@ sys.path.append(ROOT_DIR)
 MODEL_NAME = "mask_rcnn_hq"
 WEIGHTS_FILE_NAME = 'maskrcnn_15_epochs.h5'
 
-application=Flask(__name__)
+application=Flask(__name__, static_folder='static', static_url_path='/static')
 cors = CORS(application, resources={r"/*": {"origins": "*"}})
 
 
@@ -141,6 +142,12 @@ def turnSubArraysToJson(objectsArr):
 
 
 
+@application.route('/viewer')
+def viewer():
+	"""Serve the 3D viewer web interface"""
+	return send_from_directory('static', 'index.html')
+
+
 @application.route('/',methods=['POST'])
 def prediction():
 	global cfg
@@ -154,9 +161,9 @@ def prediction():
 	global _graph
 	with _graph.as_default():
 		r = _model.detect(sample, verbose=0)[0]
-	
+
 	#output_data = model_api(imagefile)
-	
+
 	data={}
 	bbx=r['rois'].tolist()
 	temp,averageDoor=normalizePoints(bbx,r['class_ids'])
@@ -167,8 +174,75 @@ def prediction():
 	data['Height']=h
 	data['averageDoor']=averageDoor
 	return jsonify(data)
-		
-    
+
+
+@application.route('/generate3d', methods=['POST'])
+def generate_3d():
+	"""
+	Generate 3D model from floor plan image
+	Returns glTF 2.0 format with embedded binary data
+	"""
+	global cfg
+
+	# Get optional parameters
+	wall_height = float(request.form.get('wall_height', 3.0))
+	wall_thickness = float(request.form.get('wall_thickness', 0.15))
+	door_height = float(request.form.get('door_height', 2.1))
+	window_height = float(request.form.get('window_height', 1.2))
+	window_sill_height = float(request.form.get('window_sill_height', 0.9))
+
+	# Load and process image
+	imagefile = PIL.Image.open(request.files['image'].stream)
+	image, w, h = myImageLoader(imagefile)
+	print(f"Image dimensions: {h}x{w}")
+
+	scaled_image = mold_image(image, cfg)
+	sample = expand_dims(scaled_image, 0)
+
+	# Run detection
+	global _model
+	global _graph
+	with _graph.as_default():
+		r = _model.detect(sample, verbose=0)[0]
+
+	# Prepare detection JSON
+	data = {}
+	bbx = r['rois'].tolist()
+	temp, averageDoor = normalizePoints(bbx, r['class_ids'])
+	temp = turnSubArraysToJson(temp)
+	data['points'] = temp
+	data['classes'] = getClassNames(r['class_ids'])
+	data['Width'] = w
+	data['Height'] = h
+	data['averageDoor'] = averageDoor
+
+	# Generate 3D model
+	generator = FloorPlan3DGenerator(
+		wall_height=wall_height,
+		wall_thickness=wall_thickness,
+		door_height=door_height,
+		window_height=window_height,
+		window_sill_height=window_sill_height
+	)
+
+	gltf_dict, buffer_data, metadata = generator.export_to_gltf_dict(data)
+
+	# Encode binary buffer as base64
+	buffer_base64 = base64.b64encode(buffer_data).decode('utf-8')
+
+	# Add buffer data as data URI to glTF
+	gltf_dict['buffers'][0]['uri'] = f"data:application/octet-stream;base64,{buffer_base64}"
+
+	# Return complete response
+	response = {
+		'detection': data,
+		'gltf': gltf_dict,
+		'metadata': metadata
+	}
+
+	return jsonify(response)
+
+
 if __name__ =='__main__':
 	application.debug=True
 	print('===========before running==========')
